@@ -6,7 +6,7 @@ a ParaView plugin for GADGET (HDF5) files
 cd ParaViewGadgetPlugin
 mkdir build; cd build
 
-# assuming your new ParaView install is in your PATH
+assuming your new ParaView install is in your PATH
 
 ccmake ..
 make
