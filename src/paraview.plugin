@@ -1,0 +1,8 @@
+NAME
+  pvGadgetReader
+DESCRIPTION
+  Reader for visualization of Gadget data
+REQUIRES_MODULES
+  VTK::CommonCore
+  VTK::CommonExecutionModel
+  VTK::hdf5

@@ -1,0 +1,18 @@
+NAME
+  GadgetReader
+LIBRARY_NAME
+  GadgetReader
+DEPENDS
+  VTK::CommonCore
+  VTK::CommonDataModel
+  VTK::CommonExecutionModel
+  VTK::FiltersGeometry
+  VTK::FiltersPoints
+  VTK::InteractionStyle
+  VTK::IOLegacy
+  VTK::RenderingCore
+  VTK::RenderingOpenGL2
+PRIVATE_DEPENDS
+  VTK::vtksys
+  VTK::mpi
+  VTK::hdf5
