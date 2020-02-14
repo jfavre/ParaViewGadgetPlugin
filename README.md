@@ -8,8 +8,7 @@ mkdir build; cd build
 
 assuming your new ParaView install is in your PATH
 
-ccmake ..
-make
+ccmake ..; make
 
 After successful compilation, the directory "./lib/paraview-5.8/plugins/pvGadgetReader" contains the shared libs
 
