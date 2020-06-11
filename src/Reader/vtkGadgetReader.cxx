@@ -461,7 +461,7 @@ int vtkGadgetReader::RequestData(
   vtkFloatArray  *data;
   vtkIdTypeArray *uidata;
   int validPart; // index into the MultiBlock container
-  for(validPart=0, myType = Gas; myType<= Stars; myType++)
+  for(validPart=0, myType = Gas; myType <= Bndry; myType++)
     {
     if(PartTypes[myType])
       {
@@ -581,7 +581,7 @@ int vtkGadgetReader::RequestData(
     {
     file_id = H5Fopen(this->GadgetFileNames[myFile].c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
     root_id = H5Gopen(file_id, "/", H5P_DEFAULT);
-    for(validPart=0, myType = Gas; myType<= Bndry; myType++)
+    for(validPart=0, myType = Gas; myType <= Bndry; myType++)
       {
       if(PartTypes[myType])
         {
