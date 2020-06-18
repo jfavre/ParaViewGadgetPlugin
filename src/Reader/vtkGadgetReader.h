@@ -128,6 +128,7 @@ protected:
   int           offsets[7] = {0,0,0,0,0,0, -1};
   int           NumFilesPerSnapshot;
   double        Time;
+  int           SizeOfCoordinatesArray;
   typedef std::vector<std::string>  stringlist;
   struct field {
     std::string name;
