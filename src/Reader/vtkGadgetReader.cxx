@@ -6,11 +6,11 @@
               Senior Visualization Software Engineer
               Swiss National Supercomputing Center
               CH-6900 Lugano
-  Tested:     Fri 14 Feb 2020 11:27:04 AM CET
+  Tested:     Thu 18 Jun 2020 08:58:34 AM CEST
   
   A Data snapshot distributed over multiple files can be read in parallel.
   In this case, use a number of pvservers that divide evently the # of files
-  such that we spread the load evenly. For exmplae, 16 files and 4 pvservers.
+  such that we spread the load evenly. For example, 16 files and 4 pvservers.
   
   A Time-series of many single-file snapshots can also be read. Parallel reading
   is not supported in this case.
@@ -138,10 +138,9 @@ vtkGadgetReader::vtkGadgetReader()
   this->UpdateNumPieces          = 0;
   this->PointDataArraySelection  = vtkDataArraySelection::New();
   for (int i=0; i< 6; i++)
-    {
-    this->PartTypes[i] = false;
     this->NumPart_Total[i] = 0;
-    }
+  for(auto const &it: ParticleTypes)
+    PartTypes[it] = false; // do not construct the dataset to add to the multi-block container
 
 #ifdef PARAVIEW_USE_MPI
   this->Controller = nullptr;
@@ -284,7 +283,7 @@ int vtkGadgetReader::RequestInformation(
         }
       this->FieldArrays[i] = group_of_datasets;
 
-      PartTypes[j] = true;
+      PartTypes[i] = true;
       H5Gclose(mesh_id);
       }
     j++;
@@ -354,8 +353,6 @@ int vtkGadgetReader::RequestInformation(
   return 1;
 }
 
-
-
 int vtkGadgetReader::RequestData(
   vtkInformation *vtkNotUsed(request),
   vtkInformationVector **vtkNotUsed(inputVector),
@@ -407,7 +404,7 @@ int vtkGadgetReader::RequestData(
 
 #endif
     
-  int myType, load, MyNumber_of_Files;
+  int load, MyNumber_of_Files;
   int nb_of_Files = this->GadgetFileNames.size();
   if(this->UpdateNumPieces == 1)
     {
@@ -457,13 +454,27 @@ int vtkGadgetReader::RequestData(
   vtkPolyData *output;
 #endif
 #endif
-
+// for each particle type, we now double-check if any variable has been selected for reading
+// if none were selected, we completely skip constructing the dataset
+// this could be made optional with a GUI checkbox.
+  for (auto const &it: this->FieldArrays)
+    {
+      bool ReallyLoad = false;
+      for(auto it2 = it.second.begin(); it2 != it.second.end(); ++it2)
+        if(this->GetPointArrayStatus((it.first + std::string("/") + (*it2).name).c_str() )) // if variable name enabled to be read
+          {
+          ReallyLoad = true;
+          }
+      PartTypes[it.first] = ReallyLoad;
+    }
+  
   vtkFloatArray  *data;
   vtkIdTypeArray *uidata;
-  int validPart; // index into the MultiBlock container
-  for(validPart=0, myType = Gas; myType <= Bndry; myType++)
+  int validPart=0; // index into the MultiBlock container
+  int myType=Gas;
+  for(auto const &it: PartTypes)
     {
-    if(PartTypes[myType])
+    if(it.second)
       {
 #ifdef PARALLEL_DEBUG
       errs << __LINE__ << ": creating PolyData for PartType " << myType << " with " << LoadPart_Total[myType] << " points\n";
@@ -477,7 +488,7 @@ int vtkGadgetReader::RequestData(
 #endif
 
       mb->SetBlock(validPart, output);
-      mb->GetMetaData(validPart)->Set(vtkCompositeDataSet::NAME(), ParticleTypes[myType]);
+      mb->GetMetaData(validPart)->Set(vtkCompositeDataSet::NAME(), it.first);
       output->Delete();
 #endif
       vtkFloatArray *coords = vtkFloatArray::New();
@@ -495,28 +506,28 @@ int vtkGadgetReader::RequestData(
         {
         if(this->GetPointArrayStatus(this->GetPointArrayName(i))) // if variable name enabled to be read
           {
-          if(!strncmp(this->GetPointArrayName(i), ParticleTypes[myType].c_str(), 9)) // first 9 characters are equal
+          if(!strncmp(this->GetPointArrayName(i), it.first.c_str(), 9)) // first 9 characters are equal
           {
           const char *name = &this->GetPointArrayName(i)[10];
 #ifdef PARALLEL_DEBUG
       errs << __LINE__ << ": " << this->GetPointArrayName(i) << ": creating data array \"" << name << "\" for PartType " << myType << " with " << LoadPart_Total[myType] << " points\n";
 #endif
           int parti = i - offsets[myType];
- std::cerr << " creating data array \"" << this->FieldArrays[ParticleTypes[myType]][parti].name << "\"(" << myType << "),"
-            << this->FieldArrays[ParticleTypes[myType]][parti].type << ","
-            << this->FieldArrays[ParticleTypes[myType]][parti].size << ", "
+ std::cerr << " creating data array \"" << this->FieldArrays[it.first][parti].name << "\"(" << myType << "),"
+            << this->FieldArrays[it.first][parti].type << ","
+            << this->FieldArrays[it.first][parti].size << ", "
             << "\n";
 
-          if(this->FieldArrays[ParticleTypes[myType]][parti].type == H5T_FLOAT)
+          if(this->FieldArrays[it.first][parti].type == H5T_FLOAT)
             {
             data = vtkFloatArray::New();
-            data->SetNumberOfComponents(this->FieldArrays[ParticleTypes[myType]][parti].size);
+            data->SetNumberOfComponents(this->FieldArrays[it.first][parti].size);
             data->SetNumberOfTuples(LoadPart_Total[myType]);
             data->SetName(name); // use the mapped names; HDF5 reading will need the original
             output->GetPointData()->AddArray(data);
             data->Delete();
             }
-          else if(this->FieldArrays[ParticleTypes[myType]][parti].type == H5T_INTEGER)
+          else if(this->FieldArrays[it.first][parti].type == H5T_INTEGER)
             {
             uidata = vtkIdTypeArray::New();
             uidata->SetNumberOfComponents(1);
@@ -573,6 +584,7 @@ int vtkGadgetReader::RequestData(
       validPart++;
       }
        std::cerr <<"================\n";
+      myType++;
     }
 
   int offset, fileOffsetNodes[6] = {0,0,0,0,0,0};
@@ -581,9 +593,11 @@ int vtkGadgetReader::RequestData(
     {
     file_id = H5Fopen(this->GadgetFileNames[myFile].c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
     root_id = H5Gopen(file_id, "/", H5P_DEFAULT);
-    for(validPart=0, myType = Gas; myType <= Bndry; myType++)
+    validPart=0;
+    myType=Gas;
+    for(auto const &it: PartTypes)
       {
-      if(PartTypes[myType])
+      if(it.second)
         {
         char name[64];
         sprintf(name,"PartType%1d", myType);
@@ -606,7 +620,7 @@ int vtkGadgetReader::RequestData(
         {
         if(this->GetPointArrayStatus(this->GetPointArrayName(i)))
           {
-          if(!strncmp(this->GetPointArrayName(i), ParticleTypes[myType].c_str(), 9)) // first 9 characters are equal
+          if(!strncmp(this->GetPointArrayName(i), it.first.c_str(), 9)) // first 9 characters are equal
             {
             const char *name = &this->GetPointArrayName(i)[10];
 #ifdef PARALLEL_DEBUG
@@ -663,7 +677,8 @@ int vtkGadgetReader::RequestData(
         validPart++;
         }
       fileOffsetNodes[myType] += offset;
-      } // for all part types
+      myType++;
+    } // for all part types
     H5Gclose(root_id);
     H5Fclose(file_id);
     } // for all files in my load

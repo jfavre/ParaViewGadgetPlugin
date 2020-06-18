@@ -6,7 +6,7 @@
               Senior Visualization Software Engineer
               Swiss National Supercomputing Center
               CH-6900 Lugano
-  Tested:     Fri 14 Feb 2020 11:27:04 AM CET
+  Tested:     Thu 18 Jun 2020 08:58:34 AM CEST
 =========================================================================*/
 
 #ifndef vtkGadgetReader_h
@@ -123,7 +123,7 @@ protected:
   vtkTimeStamp  FileOpenedTime;
   int           UpdatePiece;
   int           UpdateNumPieces;
-  bool          PartTypes[6];
+  std::map<std::string, bool> PartTypes; // to decide if to load that particular dataset
   int           NumPart_Total[6];
   int           offsets[7] = {0,0,0,0,0,0, -1};
   int           NumFilesPerSnapshot;
