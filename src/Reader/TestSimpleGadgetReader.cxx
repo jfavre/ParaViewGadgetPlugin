@@ -113,7 +113,7 @@ if(vis)
 
   if(varname.size())
     {
-    mapper1->SelectColorArray(varname.c_str());
+    mapper1->SelectColorArray(&varname[varname.find("/") + 1]);
     mapper1->SetLookupTable(lut);
     mapper1->UseLookupTableScalarRangeOn();
     }

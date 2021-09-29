@@ -241,11 +241,42 @@ int vtkGadgetReader::RequestInformation(
   hid_t    file_id = H5Fopen(this->FileName, H5F_ACC_RDONLY, H5P_DEFAULT);
   hid_t    root_id, mesh_id, attr1, d_id, mytype, filespace;
   herr_t  status;
-  root_id = H5Gopen(file_id, "/", H5P_DEFAULT);
-  int j=0;
-
   H5E_auto_t func;
   void *client_data;
+  
+  root_id = H5Gopen(file_id, "/Header", H5P_DEFAULT);
+
+  attr1 = H5Aopen_name(root_id, "NumPart_Total");
+  if (H5Aread(attr1, H5T_NATIVE_INT, &this->NumPart_Total) < 0)
+    {
+    vtkErrorMacro( << "cannot find the NumPart_Total");
+    }
+  else
+     status = H5Aclose(attr1);
+ std::cerr << __LINE__ << ", " << this->NumPart_Total[0]<< ", " << this->NumPart_Total[1]<< ", " << this->NumPart_Total[2]<< ", " << this->NumPart_Total[3]<< ", " << this->NumPart_Total[4]<< ", " << this->NumPart_Total[5];
+  attr1 = H5Aopen_name(root_id, "NumFilesPerSnapshot");
+  if (H5Aread(attr1, H5T_NATIVE_INT, &this->NumFilesPerSnapshot) < 0)
+    {
+    vtkErrorMacro( << "cannot find the NumFilesPerSnapshot");
+    }
+  else
+    status = H5Aclose(attr1);
+// turn off errors for the moment since we don't have data with Time
+  H5Eset_auto2(H5E_DEFAULT, NULL, NULL);
+  
+  attr1 = H5Aopen_name(root_id, "Time");
+  if (H5Aread(attr1, H5T_NATIVE_DOUBLE, &this->Time) < 0)
+    {
+    vtkErrorMacro( << "cannot read attribute Time");
+    }
+  else
+    status = H5Aclose(attr1);
+
+  H5Gclose(root_id);
+  
+  root_id = H5Gopen(file_id, "/", H5P_DEFAULT);
+  int particle_type=0;
+
   H5Eget_auto2(H5E_DEFAULT, &func, &client_data);
   
   int J; // how many field variable are we finding for the given PartType
@@ -302,41 +333,14 @@ int vtkGadgetReader::RequestInformation(
       PartTypes[i] = true;
       H5Gclose(mesh_id);
       }
-    j++;
-    this->offsets[j] = this->offsets[j-1] + J; // we will deduct that offset later when searching for the allocated arrays
+    particle_type++;
+    this->offsets[particle_type] = this->offsets[particle_type - 1] + J; // we will deduct that offset later when searching for the allocated arrays
     }
   H5Gclose(root_id);
   
-  root_id = H5Gopen(file_id, "/Header", H5P_DEFAULT);
 
-  attr1 = H5Aopen_name(root_id, "NumPart_Total");
-  if (H5Aread(attr1, H5T_NATIVE_INT, &this->NumPart_Total) < 0)
-    {
-    vtkErrorMacro( << "cannot find the NumPart_Total");
-    }
-  else
-     status = H5Aclose(attr1);
   
-  attr1 = H5Aopen_name(root_id, "NumFilesPerSnapshot");
-  if (H5Aread(attr1, H5T_NATIVE_INT, &this->NumFilesPerSnapshot) < 0)
-    {
-    vtkErrorMacro( << "cannot find the NumFilesPerSnapshot");
-    }
-  else
-    status = H5Aclose(attr1);
-// turn off errors for the moment since we don't have data with Time
-  H5Eset_auto2(H5E_DEFAULT, NULL, NULL);
-  
-  attr1 = H5Aopen_name(root_id, "Time");
-  if (H5Aread(attr1, H5T_NATIVE_DOUBLE, &this->Time) < 0)
-    {
-    vtkErrorMacro( << "cannot read attribute Time");
-    }
-  else
-    status = H5Aclose(attr1);
   H5Eset_auto2(H5E_DEFAULT, func, client_data);
-    
-  H5Gclose(root_id);
   H5Fclose(file_id);
 
   double timeRange[2] = {this->Time, this->Time};
