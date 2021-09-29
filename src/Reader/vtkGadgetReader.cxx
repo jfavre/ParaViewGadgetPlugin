@@ -414,7 +414,7 @@ int vtkGadgetReader::RequestData(
 #ifdef PARALLEL_DEBUG
   std::ostringstream fname;
   fname << "/tmp/out." << this->UpdatePiece << ".txt" << ends;
-  ofstream errs;
+  std::ofstream errs;
   errs.open(fname.str().c_str(),ios::trunc);
   errs << "piece " << this->UpdatePiece << " out of " << this->UpdateNumPieces << endl;
 
