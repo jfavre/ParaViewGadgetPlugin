@@ -113,7 +113,7 @@ if(vis)
 
   if(varname.size())
     {
-    mapper1->SelectColorArray("Density");
+    mapper1->SelectColorArray(varname.c_str());
     mapper1->SetLookupTable(lut);
     mapper1->UseLookupTableScalarRangeOn();
     }
