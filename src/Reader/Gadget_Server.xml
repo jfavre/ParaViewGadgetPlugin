@@ -113,6 +113,7 @@
       <Hints>
         <ReaderFactory extensions="hdf5"
                        file_description="GADGET HDF5 files" />
+	<RepresentationType view="RenderView" type="Points" />
       </Hints>
       <!-- End RAWSeriesReader -->
     </SourceProxy>
