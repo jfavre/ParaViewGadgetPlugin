@@ -61,7 +61,7 @@ public:
   vtkTypeMacro(vtkGadgetReader,vtkPolyDataAlgorithm);
 #endif
 #endif
-  void PrintSelf(ostream& os, vtkIndent indent);
+  void PrintSelf(ostream& os, vtkIndent indent) override;
 
   vtkSetStringMacro(FileName);
   vtkGetStringMacro(FileName);
@@ -108,8 +108,8 @@ protected:
    vtkGadgetReader();
   ~vtkGadgetReader();
   //
-  int   RequestInformation(vtkInformation *, vtkInformationVector **, vtkInformationVector *);
-  int   RequestData(vtkInformation *, vtkInformationVector **, vtkInformationVector *);
+  int   RequestInformation(vtkInformation *, vtkInformationVector **, vtkInformationVector *) override;
+  int   RequestData(vtkInformation *, vtkInformationVector **, vtkInformationVector *) override;
   int   OpenFile();
   void  CloseFile();
 
