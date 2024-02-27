@@ -10,8 +10,8 @@ TARGET_LINK_LIBRARIES(TestSimpleGadgetReader
 
 ADD_EXECUTABLE(TestSimpleReader TestSimpleReader.cxx)
 TARGET_LINK_LIBRARIES(TestSimpleReader
-	PUBLIC GadgetReader
 	PRIVATE
+	  VTK::IOLegacy
 	  VTK::FiltersGeometry
           VTK::InteractionStyle
           VTK::RenderingCore

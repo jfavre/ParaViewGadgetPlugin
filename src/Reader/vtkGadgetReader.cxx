@@ -1,12 +1,12 @@
 /*=========================================================================
 
-  Program:    ParaView Plugin for version 5.8
+  Program:    ParaView Plugin for version 5.12
   Module:     vtkGadgetReader.cxx
   Written by: Jean M. Favre
               Senior Visualization Software Engineer
               Swiss National Supercomputing Center
               CH-6900 Lugano
-  Tested:     Thu 18 Jun 2020 08:58:34 AM CEST
+  Tested:     Tue 27 Feb 14:16:01 CET 2024
   
   A Data snapshot distributed over multiple files can be read in parallel.
   In this case, use a number of pvservers that divide evently the # of files
@@ -19,7 +19,7 @@
   1) Compile you own ParaView from source
   2) Assume the source code has been placed in a place of your choice,
      where you should have:
-     the asscociated CMakeLists.txt file, and
+     the assocciated CMakeLists.txt file, and
      the src directory
   3) mkdir build; cd build
   4) cmake .. && make
@@ -39,7 +39,8 @@
 #include "vtkInformation.h"
 #include "vtkInformationVector.h"
 #ifdef ALL_TYPES
-#include "vtkMultiBlockDataSet.h"
+#include "vtkPartitionedDataSet.h"
+#include "vtkPartitionedDataSetCollection.h"
 #endif
 #include "vtkObjectFactory.h"
 #include "vtkPointData.h"
@@ -59,6 +60,7 @@ vtkCxxSetObjectMacro(vtkGadgetReader, Controller, vtkMultiProcessController);
 #include <algorithm>
 #include <functional>
 #include <map>
+#include <numeric>
 #include <vtk_hdf5.h>
 
 
@@ -105,8 +107,8 @@ static int ReadHDF5Dataset(const char *name, hid_t mesh_id, void *data, int size
       return -1;
       }
     }
-  else
-    std::cerr << "Error opening dataset " << name << std::endl;
+  //else /* be silent about it */
+    //std::cerr << "Error opening dataset " << name << std::endl;
 /*
 // read attributes of given dataset
         attr1 = H5Aopen_name(coords_id, "CGSConversionFactor");
@@ -253,7 +255,12 @@ int vtkGadgetReader::RequestInformation(
     }
   else
      status = H5Aclose(attr1);
- std::cerr << __LINE__ << ", " << this->NumPart_Total[0]<< ", " << this->NumPart_Total[1]<< ", " << this->NumPart_Total[2]<< ", " << this->NumPart_Total[3]<< ", " << this->NumPart_Total[4]<< ", " << this->NumPart_Total[5];
+  std::cout << __LINE__ << ", " << this->NumPart_Total[0] << ", "
+                        << this->NumPart_Total[1] << ", "
+                        << this->NumPart_Total[2]<< ", "
+                        << this->NumPart_Total[3]<< ", "
+                        << this->NumPart_Total[4]<< ", "
+                        << this->NumPart_Total[5];
   attr1 = H5Aopen_name(root_id, "NumFilesPerSnapshot");
   if (H5Aread(attr1, H5T_NATIVE_INT, &this->NumFilesPerSnapshot) < 0)
     {
@@ -280,7 +287,7 @@ int vtkGadgetReader::RequestInformation(
   H5Eget_auto2(H5E_DEFAULT, &func, &client_data);
   
   int J; // how many field variable are we finding for the given PartType
-  for (auto const i: ParticleTypes) // {"PartType0", "PartType1", "PartType2", "PartType3", "PartType4", "PartType5"}
+  for (auto const i: ParticleTypes)
     {
     J=0;
     if(H5Lexists(root_id, i.c_str(), H5P_DEFAULT))
@@ -338,8 +345,6 @@ int vtkGadgetReader::RequestInformation(
     }
   H5Gclose(root_id);
   
-
-  
   H5Eset_auto2(H5E_DEFAULT, func, client_data);
   H5Fclose(file_id);
 
@@ -387,11 +392,8 @@ int vtkGadgetReader::RequestData(
   doOutput->GetInformation()->Set( vtkDataObject::DATA_TIME_STEP(), steps[0] );
   
 #ifdef ALL_TYPES
-  vtkMultiBlockDataSet* mb = vtkMultiBlockDataSet::SafeDownCast(doOutput);
-  if (!mb)
-    {
-    return 0;
-    }
+  auto pdsc =
+    vtkPartitionedDataSetCollection::SafeDownCast(vtkDataObject::GetData(outputVector, 0));
 #else
 #ifdef OUTPUT_UG
   vtkUnstructuredGrid* output = vtkUnstructuredGrid::SafeDownCast(doOutput);
@@ -447,7 +449,7 @@ int vtkGadgetReader::RequestData(
   herr_t  status;
   hsize_t dimsf[2];
   int LoadPart_Total[6] ={0,0,0,0,0,0};
-  int lpT[6];
+  int lpT[6] ={0,0,0,0,0,0};
   for(int myFile = load*this->UpdatePiece; myFile< load*this->UpdatePiece + MyNumber_of_Files; myFile++)
     {
     errs << __LINE__ << ": opening " << this->GadgetFileNames[myFile] << endl;
@@ -477,6 +479,7 @@ int vtkGadgetReader::RequestData(
 // for each particle type, we now double-check if any variable has been selected for reading
 // if none were selected, we completely skip constructing the dataset
 // this could be made optional with a GUI checkbox.
+  int nb_parts_to_really_build=0;
   for (auto const &it: this->FieldArrays)
     {
       bool ReallyLoad = false;
@@ -484,6 +487,7 @@ int vtkGadgetReader::RequestData(
         if(this->GetPointArrayStatus((it.first + std::string("/") + (*it2).name).c_str() )) // if variable name enabled to be read
           {
           ReallyLoad = true;
+          nb_parts_to_really_build++;
           }
       PartTypes[it.first] = ReallyLoad;
     }
@@ -492,6 +496,8 @@ int vtkGadgetReader::RequestData(
   vtkIdTypeArray *uidata;
   int validPart=0; // index into the MultiBlock container
   int myType=Gas;
+  pdsc->SetNumberOfPartitionedDataSets(nb_parts_to_really_build);
+
   for(auto const &it: PartTypes)
     {
     if(it.second)
@@ -506,9 +512,9 @@ int vtkGadgetReader::RequestData(
 #else
       output = vtkPolyData::New();
 #endif
-
-      mb->SetBlock(validPart, output);
-      mb->GetMetaData(validPart)->Set(vtkCompositeDataSet::NAME(), it.first);
+      pdsc->SetNumberOfPartitions(validPart, 1);
+      pdsc->SetPartition(validPart, 0, output);
+      pdsc->GetMetaData(validPart)->Set(vtkCompositeDataSet::NAME(), it.first);
       output->Delete();
 #endif
       vtkDataArray *coords;
@@ -607,8 +613,7 @@ int vtkGadgetReader::RequestData(
         {
         vtkIdList *list = vtkIdList::New();
         list->SetNumberOfIds(LoadPart_Total[myType]);
-        for(unsigned int i=0; i < LoadPart_Total[myType]; i++)
-          list->SetId(i, i);
+        std::iota(list->GetPointer(0), list->GetPointer(LoadPart_Total[myType]), 0);
         output->Allocate(1);
         output->InsertNextCell(VTK_POLY_VERTEX, list);
         list->Delete();
@@ -635,7 +640,7 @@ int vtkGadgetReader::RequestData(
         sprintf(name,"PartType%1d", myType);
 #ifdef ALL_TYPES
 #ifdef OUTPUT_UG
-        output = static_cast<vtkUnstructuredGrid*>(mb->GetBlock(validPart));
+        output = static_cast<vtkUnstructuredGrid*>(pdsc->GetPartition(validPart, 0));
 #else
         output = static_cast<vtkPolyData*>(mb->GetBlock(validPart));
 #endif

@@ -19,7 +19,7 @@
 #define OUTPUT_UG 1
 
 #ifdef ALL_TYPES
-#include "vtkMultiBlockDataSetAlgorithm.h"
+#include "vtkPartitionedDataSetCollectionAlgorithm.h"
 static std::vector<std::string> ParticleTypes = {"PartType0", "PartType1", "PartType2", "PartType3", "PartType4", "PartType5"};
 #else
 #ifdef OUTPUT_UG
@@ -41,7 +41,7 @@ enum  ParticleType : int {Gas=0, Halo=1, Disk=2, Bulge=3, Stars=4, Bndry=5};
 enum  CellTypes : int {None=0, Vertex=1, PolyVertex=2};
 
 #ifdef ALL_TYPES
-class vtkGadgetReader : public vtkMultiBlockDataSetAlgorithm
+class vtkGadgetReader : public vtkPartitionedDataSetCollectionAlgorithm
 #else
 #ifdef OUTPUT_UG
 class vtkGadgetReader : public vtkUnstructuredGridAlgorithm
@@ -53,7 +53,7 @@ class vtkGadgetReader : public vtkPolyDataAlgorithm
 public:
   static vtkGadgetReader *New();
 #ifdef ALL_TYPES
-  vtkTypeMacro(vtkGadgetReader,vtkMultiBlockDataSetAlgorithm);
+  vtkTypeMacro(vtkGadgetReader,vtkPartitionedDataSetCollectionAlgorithm);
 #else
 #ifdef OUTPUT_UG
   vtkTypeMacro(vtkGadgetReader,vtkUnstructuredGridAlgorithm);
