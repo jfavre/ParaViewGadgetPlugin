@@ -61,7 +61,7 @@ vtkCxxSetObjectMacro(vtkGadgetReader, Controller, vtkMultiProcessController);
 #include <functional>
 #include <map>
 #include <numeric>
-#include <vtk_hdf5.h>
+#include <hdf5.h>
 
 
 static int ReadHDF5INT64Dataset(const char *name, hid_t mesh_id, long long *data)
@@ -203,6 +203,28 @@ void vtkGadgetReader::SetDirectoryName(const char* dn)
   this->FileName = strdup(dn);
 }
 
+int vtkGadgetReader::CanReadFile(const char* fname)
+{
+  hid_t file_id;
+  file_id = H5Fopen(fname, H5F_ACC_RDONLY, H5P_DEFAULT);
+  if(file_id == H5I_INVALID_HID)
+  {
+    return 0;
+  }
+  else
+  {
+    hid_t root_id = H5Gopen(file_id, "/Header", H5P_DEFAULT);
+    if (root_id == H5I_INVALID_HID)
+      return 0;
+    else
+      {
+      H5Gclose(root_id);
+      H5Fclose(file_id);
+      return 1;
+    }
+  }
+}
+
 //----------------------------------------------------------------------------
 int vtkGadgetReader::RequestInformation(
   vtkInformation *vtkNotUsed(request),
@@ -255,12 +277,12 @@ int vtkGadgetReader::RequestInformation(
     }
   else
      status = H5Aclose(attr1);
-  std::cout << __LINE__ << ", " << this->NumPart_Total[0] << ", "
+  std::cout << __LINE__ << ": " << this->NumPart_Total[0] << ", "
                         << this->NumPart_Total[1] << ", "
                         << this->NumPart_Total[2]<< ", "
                         << this->NumPart_Total[3]<< ", "
                         << this->NumPart_Total[4]<< ", "
-                        << this->NumPart_Total[5];
+                        << this->NumPart_Total[5] << std::endl;
   attr1 = H5Aopen_name(root_id, "NumFilesPerSnapshot");
   if (H5Aread(attr1, H5T_NATIVE_INT, &this->NumFilesPerSnapshot) < 0)
     {
@@ -287,15 +309,15 @@ int vtkGadgetReader::RequestInformation(
   H5Eget_auto2(H5E_DEFAULT, &func, &client_data);
   
   int J; // how many field variable are we finding for the given PartType
-  for (auto const i: ParticleTypes)
+  for (auto const particleType: ParticleTypes)
     {
     J=0;
-    if(H5Lexists(root_id, i.c_str(), H5P_DEFAULT))
+    if(H5Lexists(root_id, particleType.c_str(), H5P_DEFAULT))
       {
-      mesh_id = H5Gopen(root_id, i.c_str(), H5P_DEFAULT);
+      mesh_id = H5Gopen(root_id, particleType.c_str(), H5P_DEFAULT);
       H5G_info_t group_info;
       herr_t err = H5Gget_info(mesh_id, &group_info);
-      //std::cerr << __LINE__ << "opening group = " << i.c_str() << " has " << group_info.nlinks << " datasets" << std::endl;
+      //std::cerr << __LINE__ << "opening group = " << particleType.c_str() << " has " << group_info.nlinks << " datasets" << std::endl;
       hdf5varlist group_of_datasets;
       for(hsize_t idx=0; idx < group_info.nlinks; idx++)
         {
@@ -320,7 +342,7 @@ int vtkGadgetReader::RequestInformation(
             H5Tclose(mytype);
             H5Dclose(d_id);
        
-            this->PointDataArraySelection->AddArray((i + "/" + name).c_str());
+            this->PointDataArraySelection->AddArray((particleType + "/" + name).c_str());
             //std::cerr << __LINE__ << ": " << J << ": adding " << i + "/" + name << endl;
             J++;
             }
@@ -333,11 +355,10 @@ int vtkGadgetReader::RequestInformation(
           H5Tclose(mytype);
           H5Dclose(d_id);
           }
-          
         }
-      this->FieldArrays[i] = group_of_datasets;
+      this->FieldArrays[particleType] = group_of_datasets;
 
-      PartTypes[i] = true;
+      PartTypes[particleType] = true;
       H5Gclose(mesh_id);
       }
     particle_type++;
@@ -388,7 +409,6 @@ int vtkGadgetReader::RequestData(
   
   int length = outInfo->Length( vtkStreamingDemandDrivenPipeline::TIME_STEPS() );
   double* steps = outInfo->Get( vtkStreamingDemandDrivenPipeline::TIME_STEPS() );
-  std::cerr << "Got Time = " << steps[0] << std::endl;
   doOutput->GetInformation()->Set( vtkDataObject::DATA_TIME_STEP(), steps[0] );
   
 #ifdef ALL_TYPES
@@ -423,7 +443,6 @@ int vtkGadgetReader::RequestData(
   std::ofstream errs;
   errs.open(fname.str().c_str(),ios::trunc);
   errs << "piece " << this->UpdatePiece << " out of " << this->UpdateNumPieces << endl;
-
 #endif
     
   int load, MyNumber_of_Files;
@@ -483,15 +502,19 @@ int vtkGadgetReader::RequestData(
   for (auto const &it: this->FieldArrays)
     {
       bool ReallyLoad = false;
+      // should look to see if at least 1 variable has been selected for the given particleType
       for(auto it2 = it.second.begin(); it2 != it.second.end(); ++it2)
-        if(this->GetPointArrayStatus((it.first + std::string("/") + (*it2).name).c_str() )) // if variable name enabled to be read
+        {
+        if(this->GetPointArrayStatus((it.first + std::string("/") + (*it2).name).c_str() )) // is variable name enabled?
           {
           ReallyLoad = true;
           nb_parts_to_really_build++;
+          break;
           }
+        }
       PartTypes[it.first] = ReallyLoad;
     }
-  
+  errs << __LINE__ << ": nb_parts_to_really_build " << nb_parts_to_really_build << endl;
   vtkFloatArray  *data;
   vtkIdTypeArray *uidata;
   int validPart=0; // index into the MultiBlock container
@@ -620,7 +643,6 @@ int vtkGadgetReader::RequestData(
         }
       validPart++;
       }
-       std::cerr <<"================\n";
       myType++;
     }
 
@@ -739,7 +761,6 @@ int vtkGadgetReader::RequestData(
   return 1;
 }
 
-
 //----------------------------------------------------------------------------
 const char* vtkGadgetReader::GetPointArrayName(int index)
 {
@@ -769,13 +790,13 @@ void vtkGadgetReader::SetPointArrayStatus(const char* name, int status)
 
 void vtkGadgetReader::EnableAllPointArrays()
 {
-    this->PointDataArraySelection->EnableAllArrays();
+  this->PointDataArraySelection->EnableAllArrays();
 }
 
 //----------------------------------------------------------------------------
 void vtkGadgetReader::DisableAllPointArrays()
 {
-    this->PointDataArraySelection->DisableAllArrays();
+  this->PointDataArraySelection->DisableAllArrays();
 }
 
 //----------------------------------------------------------------------------

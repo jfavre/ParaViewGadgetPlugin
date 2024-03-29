@@ -103,7 +103,7 @@ public:
     vtkGetObjectMacro(Controller, vtkMultiProcessController);
 
 #endif
-
+  int CanReadFile(const char* fname);
 protected:
    vtkGadgetReader();
   ~vtkGadgetReader();

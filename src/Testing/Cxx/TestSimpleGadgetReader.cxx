@@ -62,6 +62,7 @@ main(int argc, char **argv)
 
   vtkGadgetReader *reader = vtkGadgetReader::New();
   reader->DebugOff();
+  reader->CanReadFile(filein.c_str());
   reader->SetDirectoryName(filein.c_str());
   reader->UpdateInformation();
   reader->SetCellType(2);
