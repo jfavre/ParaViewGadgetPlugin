@@ -7,7 +7,7 @@ VTK_MODULE_INIT(vtkInteractionStyle);
 #include "vtkCompositeDataGeometryFilter.h"
 #include "vtkCompositeDataPipeline.h"
 #include "vtkCompositeDataSet.h"
-#include "vtkCompositePolyDataMapper2.h"
+#include "vtkCompositePolyDataMapper.h"
 #include "vtkDataSet.h"
 #include "vtkDataSetMapper.h"
 #include "vtkDataSetSurfaceFilter.h"
@@ -26,6 +26,8 @@ VTK_MODULE_INIT(vtkInteractionStyle);
 #include <vtksys/SystemTools.hxx>
 #include <vtksys/CommandLineArguments.hxx>
 
+#include <iostream>
+
 #define VTK_CREATE(type, var) \
   vtkSmartPointer<type> var = vtkSmartPointer<type>::New();
 
@@ -43,7 +45,7 @@ main(int argc, char **argv)
   double range[2];
   reader->GetOutput()->GetPointData()->SetActiveScalars("Density");
   reader->GetOutput()->GetPointData()->GetArray(0)->GetRange(range);
-  cerr << ": scalar range = [" << range[0] << ", " << range[1] << "]\n";
+  std::cerr << ": scalar range = [" << range[0] << ", " << range[1] << "]\n";
 
   //cout << *reader;
 
