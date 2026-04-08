@@ -23,7 +23,7 @@ VTK_MODULE_INIT(vtkInteractionStyle);
 
 #include <vtksys/SystemTools.hxx>
 #include <vtksys/CommandLineArguments.hxx>
-
+#include <iostream>
 #define VTK_CREATE(type, var) \
   vtkSmartPointer<type> var = vtkSmartPointer<type>::New();
 
@@ -48,15 +48,15 @@ main(int argc, char **argv)
 
   if ( !args.Parse() || argc == 1 || filein.empty())
     {
-    cerr << "\nTestSimpleGadgetReader: Written by Jean M. Favre\n"
+    std::cerr << "\nTestSimpleGadgetReader: Written by Jean M. Favre\n"
          << "options are:\n";
-    cerr << args.GetHelp() << "\n";
+    std::cerr << args.GetHelp() << "\n";
     exit(1);
     }
 
   if(!vtksys::SystemTools::FileExists(filein.c_str()))
     {
-    cerr << "\nFile " << filein.c_str() << " does not exist\n\n";
+    std::cerr << "\nFile " << filein.c_str() << " does not exist\n\n";
     exit(1);
     }
 
@@ -67,7 +67,7 @@ main(int argc, char **argv)
   reader->UpdateInformation();
   reader->SetCellType(2);
   for(auto i=0; i < reader->GetNumberOfPointArrays(); i++)
-    cout << "found array (" << i << ") = " << reader->GetPointArrayName(i) << endl;
+    std::cout << "found array (" << i << ") = " << reader->GetPointArrayName(i) << endl;
   reader->DisableAllPointArrays();
   reader->SetPointArrayStatus(varname.c_str(), 1);
 
@@ -79,7 +79,7 @@ main(int argc, char **argv)
   if(varname.size())
     {
     FirstBlock->GetPointData()->GetArray(0)->GetRange(range);
-    cerr << varname.c_str() << ": scalar range = [" << range[0] << ", " << range[1] << "]\n";
+    std::cerr << varname.c_str() << ": scalar range = [" << range[0] << ", " << range[1] << "]\n";
     }
   //cout << *reader;
   /*

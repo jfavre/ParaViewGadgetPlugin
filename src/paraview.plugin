@@ -5,4 +5,3 @@ DESCRIPTION
 REQUIRES_MODULES
   VTK::CommonCore
   VTK::CommonExecutionModel
-  VTK::hdf5

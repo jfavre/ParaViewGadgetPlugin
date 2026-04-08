@@ -62,6 +62,7 @@ vtkCxxSetObjectMacro(vtkGadgetReader, Controller, vtkMultiProcessController);
 #include <map>
 #include <numeric>
 #include <hdf5.h>
+#include <iostream>
 
 
 static int ReadHDF5INT64Dataset(const char *name, hid_t mesh_id, long long *data)
