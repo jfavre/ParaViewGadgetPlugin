@@ -23,10 +23,12 @@
      the src directory
   3) mkdir build; cd build
   4) cmake .. && make
+  
+  see IO/OpenVDB/vtkOpenVDBReader.cxx https://gitlab.kitware.com/vtk/vtk/-/commit/d6bdb165085548ad62a9c3fac365068602385b6c
 =========================================================================*/
 
 #include "vtkGadgetReader.h"
-
+#include "vtkAffineArray.h"
 #include "vtkCellType.h"
 #include "vtkCellArray.h"
 #include "vtkDataArray.h"
@@ -48,7 +50,7 @@
 #include "vtkPolyData.h"
 #include "vtkUnstructuredGrid.h"
 #include "vtkStreamingDemandDrivenPipeline.h"
-
+#include "vtkVersion.h"
 #include <vtksys/RegularExpression.hxx>
 #include <vtksys/SystemTools.hxx>
 
@@ -57,6 +59,7 @@
 vtkCxxSetObjectMacro(vtkGadgetReader, Controller, vtkMultiProcessController);
 #endif
 
+#include <iostream>
 #include <algorithm>
 #include <functional>
 #include <map>
@@ -64,6 +67,7 @@ vtkCxxSetObjectMacro(vtkGadgetReader, Controller, vtkMultiProcessController);
 #include <hdf5.h>
 #include <iostream>
 
+using namespace std;
 
 static int ReadHDF5INT64Dataset(const char *name, hid_t mesh_id, long long *data)
 {
@@ -606,10 +610,10 @@ int vtkGadgetReader::RequestData(
           }
           }
         }
-
       if (this->CellType == CellTypes::Vertex)
         {
         vtkCellArray *vertices =  vtkCellArray::New();
+#define VTK_CELL_ARRAY_V2 1
 #ifdef VTK_CELL_ARRAY_V2
         vtkIdTypeArray* ca = vtkIdTypeArray::New();
         ca->SetNumberOfValues(2*LoadPart_Total[myType]);
@@ -622,7 +626,7 @@ int vtkGadgetReader::RequestData(
           }
         vertices->ImportLegacyFormat(ca);
 #else
-        vtkIdType* cells = vertices->WritePointer(LoadPart_Total[myType], 2 * LoadPart_Total[myType]);
+        vtkIdType* cells = vertices->WritePointer(LoadPart_Total[myType], 2l * LoadPart_Total[myType]);
 
         for (vtkIdType i = 0; i < LoadPart_Total[myType]; ++i)
           {
@@ -634,14 +638,26 @@ int vtkGadgetReader::RequestData(
        vertices->Delete();
        }
      else if (this->CellType == CellTypes::PolyVertex)
-        {
-        vtkIdList *list = vtkIdList::New();
-        list->SetNumberOfIds(LoadPart_Total[myType]);
-        std::iota(list->GetPointer(0), list->GetPointer(LoadPart_Total[myType]), 0);
-        output->Allocate(1);
-        output->InsertNextCell(VTK_POLY_VERTEX, list);
-        list->Delete();
+       if (vtkVersion::GetVTKBuildVersion() >= 20251209)
+         {
+         vtkNew<vtkAffineArray<vtkIdType>> polyVertex;
+         polyVertex->SetBackend(std::make_shared<vtkAffineImplicitBackend<vtkIdType>>(1, 0));
+         std::cout << __LINE__ << ": Using vtkAffineImplicitBackend\n";
+         polyVertex->SetNumberOfTuples(LoadPart_Total[myType]);
+         vtkNew<vtkCellArray> verts;
+         verts->SetData(1, polyVertex);
+         output->SetCells(VTK_POLY_VERTEX, verts);
         }
+       else
+         {
+         vtkIdList *list = vtkIdList::New();
+         list->SetNumberOfIds(LoadPart_Total[myType]);
+         std::cout << __LINE__ << ": Using std::iota() arrays\n";
+         std::iota(list->GetPointer(0), list->GetPointer(LoadPart_Total[myType]), 0);
+         output->Allocate(1);
+         output->InsertNextCell(VTK_POLY_VERTEX, list);
+         list->Delete();
+         }
       validPart++;
       }
       myType++;
@@ -665,7 +681,8 @@ int vtkGadgetReader::RequestData(
 #ifdef OUTPUT_UG
         output = static_cast<vtkUnstructuredGrid*>(pdsc->GetPartition(validPart, 0));
 #else
-        output = static_cast<vtkPolyData*>(mb->GetBlock(validPart));
+        output = static_cast<vtkPolyData*>(pdsc->GetPartition(validPart, 0));
+        //output = static_cast<vtkPolyData*>(mb->GetBlock(validPart));
 #endif
 #endif
         mesh_id = H5Gopen(root_id, name, H5P_DEFAULT);

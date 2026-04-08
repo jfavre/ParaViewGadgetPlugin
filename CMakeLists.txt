@@ -10,6 +10,8 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}"
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}")
 
 find_package(ParaView REQUIRED)
+#find_package(VTK REQUIRED COMPONENTS IOLegacy ParallelCore CommonCore CommonDataModel CommonExecutionModel CommonSystem)
+#find_package(ParaView REQUIRED COMPONENTS ParaViewPlugin)
 
 if(PARAVIEW_USE_MPI)
   find_package(MPI)
