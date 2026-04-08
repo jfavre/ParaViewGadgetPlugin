@@ -613,7 +613,7 @@ int vtkGadgetReader::RequestData(
       if (this->CellType == CellTypes::Vertex)
         {
         vtkCellArray *vertices =  vtkCellArray::New();
-#define VTK_CELL_ARRAY_V2 1
+
 #ifdef VTK_CELL_ARRAY_V2
         vtkIdTypeArray* ca = vtkIdTypeArray::New();
         ca->SetNumberOfValues(2*LoadPart_Total[myType]);
