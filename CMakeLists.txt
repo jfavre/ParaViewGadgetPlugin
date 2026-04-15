@@ -25,8 +25,7 @@ paraview_plugin_scan(
 
 foreach (module IN LISTS required_modules)
   if (NOT TARGET "${module}")
-    message("Missing required module: ${module}")
-    return ()
+    message(SEND_ERROR "Missing required module: ${module}")
   endif ()
 endforeach ()
 

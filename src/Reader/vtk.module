@@ -12,4 +12,4 @@ DEPENDS
 PRIVATE_DEPENDS
   VTK::vtksys
   VTK::mpi
-  VTK::vtkhdf5
+  VTK::hdf5
