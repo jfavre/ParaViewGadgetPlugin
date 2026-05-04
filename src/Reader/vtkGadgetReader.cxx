@@ -50,7 +50,6 @@
 #include "vtkPolyData.h"
 #include "vtkUnstructuredGrid.h"
 #include "vtkStreamingDemandDrivenPipeline.h"
-#include "vtkVersion.h"
 #include <vtksys/RegularExpression.hxx>
 #include <vtksys/SystemTools.hxx>
 
@@ -282,12 +281,6 @@ int vtkGadgetReader::RequestInformation(
     }
   else
      status = H5Aclose(attr1);
-  std::cout << __LINE__ << ": " << this->NumPart_Total[0] << ", "
-                        << this->NumPart_Total[1] << ", "
-                        << this->NumPart_Total[2]<< ", "
-                        << this->NumPart_Total[3]<< ", "
-                        << this->NumPart_Total[4]<< ", "
-                        << this->NumPart_Total[5] << std::endl;
   attr1 = H5Aopen_name(root_id, "NumFilesPerSnapshot");
   if (H5Aread(attr1, H5T_NATIVE_INT, &this->NumFilesPerSnapshot) < 0)
     {
@@ -441,7 +434,7 @@ int vtkGadgetReader::RequestData(
   this->UpdateNumPieces = outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_NUMBER_OF_PIECES());
 #endif
 
-#define PARALLEL_DEBUG 1
+//#define PARALLEL_DEBUG 1
 #ifdef PARALLEL_DEBUG
   std::ostringstream fname;
   fname << "/tmp/out." << this->UpdatePiece << ".txt" << ends;
@@ -476,7 +469,9 @@ int vtkGadgetReader::RequestData(
   int lpT[6] ={0,0,0,0,0,0};
   for(int myFile = load*this->UpdatePiece; myFile< load*this->UpdatePiece + MyNumber_of_Files; myFile++)
     {
+#ifdef PARALLEL_DEBUG
     errs << __LINE__ << ": opening " << this->GadgetFileNames[myFile] << endl;
+#endif
     file_id = H5Fopen(this->GadgetFileNames[myFile].c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
     root_id = H5Gopen(file_id, "/Header", H5P_DEFAULT);
 
@@ -519,7 +514,10 @@ int vtkGadgetReader::RequestData(
         }
       PartTypes[it.first] = ReallyLoad;
     }
+#ifdef PARALLEL_DEBUG
   errs << __LINE__ << ": nb_parts_to_really_build " << nb_parts_to_really_build << endl;
+#endif
+  
   vtkFloatArray  *data;
   vtkIdTypeArray *uidata;
   int validPart=0; // index into the MultiBlock container
@@ -579,10 +577,6 @@ int vtkGadgetReader::RequestData(
       errs << __LINE__ << ": " << this->GetPointArrayName(i) << ": creating data array \"" << name << "\" for PartType " << myType << " with " << LoadPart_Total[myType] << " points\n";
 #endif
           int parti = i - offsets[myType];
- std::cout << " creating data array \"" << this->FieldArrays[it.first][parti].name << "\"(" << myType << "),"
-            << this->FieldArrays[it.first][parti].type << ","
-            << this->FieldArrays[it.first][parti].size << ", "
-            << "\n";
 
           if(this->FieldArrays[it.first][parti].type == H5T_FLOAT)
             {
@@ -613,8 +607,6 @@ int vtkGadgetReader::RequestData(
       if (this->CellType == CellTypes::Vertex)
         {
         vtkCellArray *vertices =  vtkCellArray::New();
-
-#ifdef VTK_CELL_ARRAY_V2
         vtkIdTypeArray* ca = vtkIdTypeArray::New();
         ca->SetNumberOfValues(2*LoadPart_Total[myType]);
         vertices->AllocateExact(LoadPart_Total[myType], LoadPart_Total[myType]);
@@ -624,40 +616,35 @@ int vtkGadgetReader::RequestData(
           *cells++ = 1;  // number of vertices in cell
           *cells++ = id; // internal ID of vertex
           }
-        vertices->ImportLegacyFormat(ca);
-#else
-        vtkIdType* cells = vertices->WritePointer(LoadPart_Total[myType], 2l * LoadPart_Total[myType]);
-
-        for (vtkIdType i = 0; i < LoadPart_Total[myType]; ++i)
-          {
-          cells[2 * i] = 1;
-          cells[2 * i + 1] = i;
-          }
-#endif
+       vertices->ImportLegacyFormat(ca);
        output->SetCells(VTK_VERTEX, vertices);
        vertices->Delete();
        }
      else if (this->CellType == CellTypes::PolyVertex)
-       if (vtkVersion::GetVTKBuildVersion() >= 20251209)
+       {
+       if (1)
          {
          vtkNew<vtkAffineArray<vtkIdType>> polyVertex;
-         polyVertex->SetBackend(std::make_shared<vtkAffineImplicitBackend<vtkIdType>>(1, 0));
-         std::cout << __LINE__ << ": Using vtkAffineImplicitBackend\n";
+         polyVertex->ConstructBackend(1, 0);
+         //std::cout << "Using vtkAffineImplicitBackend\n";
          polyVertex->SetNumberOfTuples(LoadPart_Total[myType]);
+         polyVertex->SetNumberOfComponents(1);
          vtkNew<vtkCellArray> verts;
          verts->SetData(1, polyVertex);
+         output->Allocate(1);
          output->SetCells(VTK_POLY_VERTEX, verts);
-        }
+         }
        else
          {
          vtkIdList *list = vtkIdList::New();
          list->SetNumberOfIds(LoadPart_Total[myType]);
-         std::cout << __LINE__ << ": Using std::iota() arrays\n";
+         //std::cout << __LINE__ << ": Using std::iota() arrays\n";
          std::iota(list->GetPointer(0), list->GetPointer(LoadPart_Total[myType]), 0);
          output->Allocate(1);
          output->InsertNextCell(VTK_POLY_VERTEX, list);
          list->Delete();
          }
+       }
       validPart++;
       }
       myType++;
