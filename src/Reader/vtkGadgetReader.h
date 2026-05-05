@@ -1,12 +1,12 @@
 /*=========================================================================
 
-  Program:    ParaView Plugin for version 5.12
+  Program:    ParaView Plugin for version 6.1
   Module:     vtkGadgetReader.h
   Written by: Jean M. Favre
               Senior Visualization Software Engineer
               Swiss National Supercomputing Center
               CH-6900 Lugano
-  Tested:     Tue 27 Feb 14:16:01 CET 2024
+  Tested:     Tue May  5 11:37:53 AM CEST 2026
 =========================================================================*/
 
 #ifndef vtkGadgetReader_h

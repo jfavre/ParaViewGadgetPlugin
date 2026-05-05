@@ -1,12 +1,12 @@
 /*=========================================================================
 
-  Program:    ParaView Plugin for version 5.12
+  Program:    ParaView Plugin for version 6.1
   Module:     vtkGadgetReader.cxx
   Written by: Jean M. Favre
               Senior Visualization Software Engineer
               Swiss National Supercomputing Center
               CH-6900 Lugano
-  Tested:     Tue 27 Feb 14:16:01 CET 2024
+  Tested:     Tue May  5 11:37:53 AM CEST 2026
   
   A Data snapshot distributed over multiple files can be read in parallel.
   In this case, use a number of pvservers that divide evently the # of files
@@ -62,7 +62,7 @@ vtkCxxSetObjectMacro(vtkGadgetReader, Controller, vtkMultiProcessController);
 #include <algorithm>
 #include <functional>
 #include <map>
-#include <numeric>
+#include <numeric> //std::iota
 #include <hdf5.h>
 #include <iostream>
 
@@ -83,7 +83,7 @@ static int ReadHDF5INT64Dataset(const char *name, hid_t mesh_id, long long *data
   return dimsf[0];
 }
 
-// I added the ability to read 64-bit or 32-bit floats for coordinates. All other reads default to using 32-but floats
+// I added the ability to read 64-bit or 32-bit floats for coordinates. All other reads default to using 32-bit floats
 static int ReadHDF5Dataset(const char *name, hid_t mesh_id, void *data, int size)
 {
   hid_t coords_id, filespace, attr1;
@@ -111,29 +111,8 @@ static int ReadHDF5Dataset(const char *name, hid_t mesh_id, void *data, int size
       return -1;
       }
     }
-  //else /* be silent about it */
-    //std::cerr << "Error opening dataset " << name << std::endl;
-/*
-// read attributes of given dataset
-        attr1 = H5Aopen_name(coords_id, "CGSConversionFactor");
-        if (H5Aread(attr1, H5T_NATIVE_DOUBLE, &CGSConversionFactor) < 0)
-    return -1;
-        status = H5Aclose(attr1);
-
-        attr1 = H5Aopen_name(coords_id, "aexp-scale-exponent");
-        if (H5Aread(attr1, H5T_NATIVE_FLOAT, &aexpScaleExponent) < 0)
-    return -1;
-        status = H5Aclose(attr1);
-
-        attr1 = H5Aopen_name(coords_id, "h-scale-exponent");
-        if (H5Aread(attr1, H5T_NATIVE_FLOAT, &hScaleExponent) < 0)
-    return -1;
-        status = H5Aclose(attr1);
-*/
-// end of attributes read
-// TODO Do coordinates have to be scaled with given attributes. Don't know yet.
-    H5Dclose(coords_id);
-    return dimsf[0];
+  H5Dclose(coords_id);
+  return dimsf[0];
 }
 
 //----------------------------------------------------------------------------
@@ -212,11 +191,11 @@ int vtkGadgetReader::CanReadFile(const char* fname)
   hid_t file_id;
   file_id = H5Fopen(fname, H5F_ACC_RDONLY, H5P_DEFAULT);
   if(file_id == H5I_INVALID_HID)
-  {
+    {
     return 0;
-  }
+    }
   else
-  {
+    {
     hid_t root_id = H5Gopen(file_id, "/Header", H5P_DEFAULT);
     if (root_id == H5I_INVALID_HID)
       return 0;
@@ -225,8 +204,8 @@ int vtkGadgetReader::CanReadFile(const char* fname)
       H5Gclose(root_id);
       H5Fclose(file_id);
       return 1;
+      }
     }
-  }
 }
 
 //----------------------------------------------------------------------------
@@ -248,17 +227,17 @@ int vtkGadgetReader::RequestInformation(
   this->UpdatePiece = outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_PIECE_NUMBER());
 #endif
 
-    vtkDirectory* dir = vtkDirectory::New();
-    int opened = dir->Open(this->DirectoryName);
-    if (!opened)
+  vtkDirectory* dir = vtkDirectory::New();
+  int opened = dir->Open(this->DirectoryName);
+  if (!opened)
     {
       vtkErrorMacro("Couldn't open " << this->DirectoryName);
       dir->Delete();
       return 0;
     }
-    vtkIdType numFiles = dir->GetNumberOfFiles();
+  vtkIdType numFiles = dir->GetNumberOfFiles();
     
-    this->GadgetFileNames.clear();
+  this->GadgetFileNames.clear();
     // if opening a directory where a snapshot has been split into multiple files,
     // then the GadgetFileNames should be filled up with all sub-files
     // otherwise we are in the presence of a "normal directory" where
@@ -424,11 +403,11 @@ int vtkGadgetReader::RequestData(
   if (this->Controller &&
       (this->UpdatePiece != this->Controller->GetLocalProcessId() ||
        this->UpdateNumPieces != this->Controller->GetNumberOfProcesses()))
-  {
+    {
     vtkDebugMacro(<< "Parallel failure, Id's not right (ignore)");
     this->UpdatePiece = this->Controller->GetLocalProcessId();
     this->UpdateNumPieces = this->Controller->GetNumberOfProcesses();
-  }
+    }
 #else
   this->UpdatePiece = outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_PIECE_NUMBER());
   this->UpdateNumPieces = outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_NUMBER_OF_PIECES());
@@ -501,18 +480,18 @@ int vtkGadgetReader::RequestData(
   int nb_parts_to_really_build=0;
   for (auto const &it: this->FieldArrays)
     {
-      bool ReallyLoad = false;
-      // should look to see if at least 1 variable has been selected for the given particleType
-      for(auto it2 = it.second.begin(); it2 != it.second.end(); ++it2)
+    bool ReallyLoad = false;
+    // should look to see if at least 1 variable has been selected for the given particleType
+    for(auto it2 = it.second.begin(); it2 != it.second.end(); ++it2)
+      {
+      if(this->GetPointArrayStatus((it.first + std::string("/") + (*it2).name).c_str() )) // is variable name enabled?
         {
-        if(this->GetPointArrayStatus((it.first + std::string("/") + (*it2).name).c_str() )) // is variable name enabled?
-          {
-          ReallyLoad = true;
-          nb_parts_to_really_build++;
-          break;
-          }
+        ReallyLoad = true;
+        nb_parts_to_really_build++;
+        break;
         }
-      PartTypes[it.first] = ReallyLoad;
+      }
+    PartTypes[it.first] = ReallyLoad;
     }
 #ifdef PARALLEL_DEBUG
   errs << __LINE__ << ": nb_parts_to_really_build " << nb_parts_to_really_build << endl;
@@ -571,79 +550,78 @@ int vtkGadgetReader::RequestData(
         if(this->GetPointArrayStatus(this->GetPointArrayName(i))) // if variable name enabled to be read
           {
           if(!strncmp(this->GetPointArrayName(i), it.first.c_str(), 9)) // first 9 characters are equal
-          {
-          const char *name = &this->GetPointArrayName(i)[10];
+            {
+            const char *name = &this->GetPointArrayName(i)[10];
 #ifdef PARALLEL_DEBUG
-      errs << __LINE__ << ": " << this->GetPointArrayName(i) << ": creating data array \"" << name << "\" for PartType " << myType << " with " << LoadPart_Total[myType] << " points\n";
+            errs << __LINE__ << ": " << this->GetPointArrayName(i) << ": creating data array \""
+                 << name << "\" for PartType " << myType << " with " << LoadPart_Total[myType] << " points\n";
 #endif
-          int parti = i - offsets[myType];
+            int parti = i - offsets[myType];
 
-          if(this->FieldArrays[it.first][parti].type == H5T_FLOAT)
-            {
-            data = vtkFloatArray::New();
-            data->SetNumberOfComponents(this->FieldArrays[it.first][parti].size);
-            data->SetNumberOfTuples(LoadPart_Total[myType]);
-            data->SetName(name); // use the mapped names; HDF5 reading will need the original
-            output->GetPointData()->AddArray(data);
-            data->Delete();
-            }
-          else if(this->FieldArrays[it.first][parti].type == H5T_INTEGER)
-            {
-            uidata = vtkIdTypeArray::New();
-            uidata->SetNumberOfComponents(1);
-            uidata->SetNumberOfTuples(LoadPart_Total[myType]);
-            uidata->SetName(name);
-            if(!strcmp(name, "ParticleIDs"))
+            if(this->FieldArrays[it.first][parti].type == H5T_FLOAT)
               {
-              output->GetPointData()->SetActiveGlobalIds(name);
-              std::cout << " Setting Active GlobalIds = " << name << "\n";
+              data = vtkFloatArray::New();
+              data->SetNumberOfComponents(this->FieldArrays[it.first][parti].size);
+              data->SetNumberOfTuples(LoadPart_Total[myType]);
+              data->SetName(name); // use the mapped names; HDF5 reading will need the original
+              output->GetPointData()->AddArray(data);
+              data->Delete();
               }
-            output->GetPointData()->AddArray(uidata);
-            uidata->Delete();
+            else if(this->FieldArrays[it.first][parti].type == H5T_INTEGER)
+              {
+              uidata = vtkIdTypeArray::New();
+              uidata->SetNumberOfComponents(1);
+              uidata->SetNumberOfTuples(LoadPart_Total[myType]);
+              uidata->SetName(name);
+              if(!strcmp(name, "ParticleIDs"))
+                {
+                output->GetPointData()->SetActiveGlobalIds(name);
+                std::cout << " Setting Active GlobalIds = " << name << "\n";
+                }
+              output->GetPointData()->AddArray(uidata);
+              uidata->Delete();
+              }
             }
-          }
           }
         }
       if (this->CellType == CellTypes::Vertex)
         {
-        vtkCellArray *vertices =  vtkCellArray::New();
-        vtkIdTypeArray* ca = vtkIdTypeArray::New();
-        ca->SetNumberOfValues(2*LoadPart_Total[myType]);
-        vertices->AllocateExact(LoadPart_Total[myType], LoadPart_Total[myType]);
-        vtkIdType* cells = ca->GetPointer(0);
-        for (auto id = 0; id < LoadPart_Total[myType]; id++)
-          {
-          *cells++ = 1;  // number of vertices in cell
-          *cells++ = id; // internal ID of vertex
-          }
-       vertices->ImportLegacyFormat(ca);
-       output->SetCells(VTK_VERTEX, vertices);
-       vertices->Delete();
-       }
-     else if (this->CellType == CellTypes::PolyVertex)
-       {
-       if (1)
-         {
-         vtkNew<vtkAffineArray<vtkIdType>> polyVertex;
-         polyVertex->ConstructBackend(1, 0);
+         vtkNew<vtkAffineArray<vtkIdType>> vertices;
+         vertices->ConstructBackend(1, 0);
          //std::cout << "Using vtkAffineImplicitBackend\n";
-         polyVertex->SetNumberOfTuples(LoadPart_Total[myType]);
-         polyVertex->SetNumberOfComponents(1);
+         vertices->SetNumberOfTuples(LoadPart_Total[myType]);
+         vertices->SetNumberOfComponents(1);
          vtkNew<vtkCellArray> verts;
-         verts->SetData(1, polyVertex);
-         output->Allocate(1);
-         output->SetCells(VTK_POLY_VERTEX, verts);
-         }
-       else
-         {
-         vtkIdList *list = vtkIdList::New();
-         list->SetNumberOfIds(LoadPart_Total[myType]);
-         //std::cout << __LINE__ << ": Using std::iota() arrays\n";
-         std::iota(list->GetPointer(0), list->GetPointer(LoadPart_Total[myType]), 0);
-         output->Allocate(1);
-         output->InsertNextCell(VTK_POLY_VERTEX, list);
-         list->Delete();
-         }
+         // numCells = number_of_particles, connectivitySize
+         verts->AllocateExact(LoadPart_Total[myType], LoadPart_Total[myType]);
+         verts->SetData(1, vertices);
+         output->SetCells(VTK_VERTEX, verts);
+        }
+      else if (this->CellType == CellTypes::PolyVertex)
+        {
+         if (1)
+           {
+           vtkNew<vtkAffineArray<vtkIdType>> polyVertex;
+           polyVertex->ConstructBackend(1, 0);
+           //std::cout << "Using vtkAffineImplicitBackend\n";
+           polyVertex->SetNumberOfTuples(LoadPart_Total[myType]);
+           polyVertex->SetNumberOfComponents(1);
+           vtkNew<vtkCellArray> verts;
+           // numCells = 1, connectivitySize
+           verts->AllocateExact(1, LoadPart_Total[myType]); // numCells, connectivitySize
+           verts->SetData(LoadPart_Total[myType], polyVertex);
+           output->SetCells(VTK_POLY_VERTEX, verts);
+           }
+         else
+           {
+           vtkIdList *list = vtkIdList::New();
+           list->SetNumberOfIds(LoadPart_Total[myType]);
+           //std::cout << __LINE__ << ": Using std::iota() arrays\n";
+           std::iota(list->begin(), list->end(), 0);
+           output->Allocate(1);
+           output->InsertNextCell(VTK_POLY_VERTEX, list);
+           list->Delete();
+           }
        }
       validPart++;
       }
@@ -675,78 +653,79 @@ int vtkGadgetReader::RequestData(
         mesh_id = H5Gopen(root_id, name, H5P_DEFAULT);
 
 // insert coordinates read
-      void *dptr;
-      switch(SizeOfCoordinatesArray)
-        {
-        case 4:
-          dptr = static_cast<vtkFloatArray *>(output->GetPoints()->GetData())->GetPointer(fileOffsetNodes[myType]*3);
-          offset = ReadHDF5Dataset("Coordinates", mesh_id, dptr, SizeOfCoordinatesArray);
-        break;
-        case 8:
-          dptr = static_cast<vtkDoubleArray *>(output->GetPoints()->GetData())->GetPointer(fileOffsetNodes[myType]*3);
-          offset = ReadHDF5Dataset("Coordinates", mesh_id, dptr, SizeOfCoordinatesArray);
-        break;
-        default:
-          std::cerr << " unknown size of coordinates arrays\n"; 
-        }
+        void *dptr;
+        switch(SizeOfCoordinatesArray)
+          {
+          case 4:
+            dptr = static_cast<vtkFloatArray *>(output->GetPoints()->GetData())->GetPointer(fileOffsetNodes[myType]*3);
+            offset = ReadHDF5Dataset("Coordinates", mesh_id, dptr, SizeOfCoordinatesArray);
+          break;
+          case 8:
+            dptr = static_cast<vtkDoubleArray *>(output->GetPoints()->GetData())->GetPointer(fileOffsetNodes[myType]*3);
+            offset = ReadHDF5Dataset("Coordinates", mesh_id, dptr, SizeOfCoordinatesArray);
+          break;
+          default:
+            std::cerr << " unknown size of coordinates arrays\n"; 
+          }
 // end of coordinates read
 
 // insert PointData here
-      for(int i = 0 ; i < this->GetNumberOfPointArrays(); i++)
-        {
-        if(this->GetPointArrayStatus(this->GetPointArrayName(i)))
+        for(int i = 0 ; i < this->GetNumberOfPointArrays(); i++)
           {
-          if(!strncmp(this->GetPointArrayName(i), it.first.c_str(), 9)) // first 9 characters are equal
+          if(this->GetPointArrayStatus(this->GetPointArrayName(i)))
             {
-            const char *name = &this->GetPointArrayName(i)[10];
+            if(!strncmp(this->GetPointArrayName(i), it.first.c_str(), 9)) // first 9 characters are equal
+              {
+              const char *name = &this->GetPointArrayName(i)[10];
 #ifdef PARALLEL_DEBUG
-      errs << this->GadgetFileNames[myFile] << ": reading data array " << name << " for PartType " << myType << " with " << this->NumPart_Total[myType] << " points\n";
+              errs << this->GadgetFileNames[myFile] << ": reading data array " << name
+                   << " for PartType " << myType << " with " << this->NumPart_Total[myType] << " points\n";
 #endif
-            if(!strcmp(name, "ParticleIDs") || !strcmp(name, "ParticleChildIDsNumber") || !strcmp(name, "ParticleIDGenerationNumber"))
-              {
-              uidata = static_cast<vtkIdTypeArray *>(output->GetPointData()->GetArray(name));
-              vtkTypeInt64 *lptr = uidata->GetPointer( uidata->GetNumberOfComponents() * fileOffsetNodes[myType] );
-              ReadHDF5INT64Dataset(name, mesh_id, lptr);
-              }
-            else
-              {
-              data = static_cast<vtkFloatArray *>(output->GetPointData()->GetArray(name));
-              dptr = data->GetPointer( data->GetNumberOfComponents() * fileOffsetNodes[myType] );
-              ReadHDF5Dataset(name, mesh_id, dptr, 4);
-            // split by component
-              if(!strcmp(name, "velocity"))
+              if(!strcmp(name, "ParticleIDs") || !strcmp(name, "ParticleChildIDsNumber") || !strcmp(name, "ParticleIDGenerationNumber"))
                 {
-                double tuple[3];
-                int NbTuples = data->GetNumberOfTuples();
-                vtkFloatArray *vx = vtkFloatArray::New();
-                vx->SetName("vx");
-                vx->SetNumberOfTuples(NbTuples);
-                output->GetPointData()->AddArray(vx);
-                vx->Delete();
-
-                vtkFloatArray *vy = vtkFloatArray::New();
-                vy->SetName("vy");
-                vy->SetNumberOfTuples(NbTuples);
-                output->GetPointData()->AddArray(vy);
-                vy->Delete();
-
-                vtkFloatArray *vz = vtkFloatArray::New();
-                vz->SetName("vz");
-                vz->SetNumberOfTuples(NbTuples);
-                output->GetPointData()->AddArray(vz);
-                vz->Delete();
-                for(vtkIdType i=0; i < NbTuples; i++)
+                uidata = static_cast<vtkIdTypeArray *>(output->GetPointData()->GetArray(name));
+                vtkTypeInt64 *lptr = uidata->GetPointer( uidata->GetNumberOfComponents() * fileOffsetNodes[myType] );
+                ReadHDF5INT64Dataset(name, mesh_id, lptr);
+                }
+              else
+                {
+                data = static_cast<vtkFloatArray *>(output->GetPointData()->GetArray(name));
+                dptr = data->GetPointer( data->GetNumberOfComponents() * fileOffsetNodes[myType] );
+                ReadHDF5Dataset(name, mesh_id, dptr, 4);
+                // split by component
+                if(!strcmp(name, "velocity"))
                   {
-                  data->GetTuple(i, tuple);
-                  vx->SetTuple1(i, tuple[0]);
-                  vy->SetTuple1(i, tuple[1]);
-                  vz->SetTuple1(i, tuple[2]);
+                  double tuple[3];
+                  int NbTuples = data->GetNumberOfTuples();
+                  vtkFloatArray *vx = vtkFloatArray::New();
+                  vx->SetName("vx");
+                  vx->SetNumberOfTuples(NbTuples);
+                  output->GetPointData()->AddArray(vx);
+                  vx->Delete();
+
+                  vtkFloatArray *vy = vtkFloatArray::New();
+                  vy->SetName("vy");
+                  vy->SetNumberOfTuples(NbTuples);
+                  output->GetPointData()->AddArray(vy);
+                  vy->Delete();
+
+                  vtkFloatArray *vz = vtkFloatArray::New();
+                  vz->SetName("vz");
+                  vz->SetNumberOfTuples(NbTuples);
+                  output->GetPointData()->AddArray(vz);
+                  vz->Delete();
+                  for(vtkIdType i=0; i < NbTuples; i++)
+                    {
+                    data->GetTuple(i, tuple);
+                    vx->SetTuple1(i, tuple[0]);
+                    vy->SetTuple1(i, tuple[1]);
+                    vz->SetTuple1(i, tuple[2]);
+                    }
                   }
                 }
               }
             }
           }
-        }
 // end of PointData read
 
         H5Gclose(mesh_id);
@@ -754,7 +733,7 @@ int vtkGadgetReader::RequestData(
         }
       fileOffsetNodes[myType] += offset;
       myType++;
-    } // for all part types
+      } // for all part types
     H5Gclose(root_id);
     H5Fclose(file_id);
     } // for all files in my load
